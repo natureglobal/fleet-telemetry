@@ -37,9 +37,11 @@ const (
 	mqttBroker  = "mqtt:1883"
 	mqttTopic   = "telemetry/device-1/v/VehicleName"
 	kinesisHost = "http://kinesis:4566"
+	sqsHost     = "http://kinesis:4566"
 
 	kinesisStreamName             = "test_V"
 	kinesisConnectivityStreamName = "test_connectivity"
+	sqsQueueName                  = "test_telemetry"
 )
 
 var expectedLocation = &protos.LocationValue{Latitude: -37.412374, Longitude: 122.145867}
@@ -58,6 +60,7 @@ var _ = Describe("Test messages", Ordered, func() {
 		connection      *websocket.Conn
 		pubsubConsumer  *TestConsumer
 		kinesisConsumer *TestKinesisConsumer
+		sqsConsumer     *TestSQSConsumer
 		kafkaConsumer   *kafka.Consumer
 		zmqConsumer     *TestZMQConsumer
 		mqttConsumer    *TestMQTTConsumer
@@ -77,6 +80,9 @@ var _ = Describe("Test messages", Ordered, func() {
 		payload = GenerateVehicleMessage(deviceID, vehicleName, location, timestamp)
 
 		kinesisConsumer, err = NewTestKinesisConsumer(kinesisHost, []string{kinesisStreamName, kinesisConnectivityStreamName})
+		Expect(err).NotTo(HaveOccurred())
+
+		sqsConsumer, err = NewTestSQSConsumer(sqsHost, sqsQueueName)
 		Expect(err).NotTo(HaveOccurred())
 
 		setEnv("PUBSUB_EMULATOR_HOST", pubsubHost)
@@ -191,6 +197,26 @@ var _ = Describe("Test messages", Ordered, func() {
 				return err
 			}, time.Second*5, time.Millisecond*100).Should(BeNil())
 			VerifyMessageBody(record.Data, vehicleName)
+		})
+
+		It("reads vehicle data from aws sqs", func() {
+			var err error
+			// As with kinesis, send a few records to make delivery deterministic.
+			for i := 1; i <= 4; i++ {
+				err = connection.WriteMessage(websocket.BinaryMessage, payload)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			var (
+				body  []byte
+				attrs map[string]string
+			)
+			Eventually(func() error {
+				body, attrs, err = sqsConsumer.FetchFirstMessage()
+				return err
+			}, time.Second*5, time.Millisecond*100).Should(BeNil())
+			Expect(attrs["type"]).To(Equal("tesla_telemetry"))
+			VerifyMessageBody(body, vehicleName)
 		})
 
 		It("reads vehicle data from MQTT broker", func() {

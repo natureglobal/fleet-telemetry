@@ -23,6 +23,7 @@ import (
 	"github.com/teslamotors/fleet-telemetry/datastore/kinesis"
 	"github.com/teslamotors/fleet-telemetry/datastore/mqtt"
 	"github.com/teslamotors/fleet-telemetry/datastore/simple"
+	"github.com/teslamotors/fleet-telemetry/datastore/sqs"
 	"github.com/teslamotors/fleet-telemetry/datastore/zmq"
 	logrus "github.com/teslamotors/fleet-telemetry/logger"
 	"github.com/teslamotors/fleet-telemetry/metrics"
@@ -64,6 +65,9 @@ type Config struct {
 
 	// Kinesis is a configuration for AWS Kinesis
 	Kinesis *Kinesis `json:"kinesis,omitempty"`
+
+	// SQS is a configuration for AWS SQS
+	SQS *SQS `json:"sqs,omitempty"`
 
 	// Pubsub is a configuration for the Google Pubsub
 	Pubsub *Pubsub `json:"pubsub,omitempty"`
@@ -146,6 +150,13 @@ type Kinesis struct {
 	MaxRetries   *int              `json:"max_retries,omitempty"`
 	OverrideHost string            `json:"override_host"`
 	Streams      map[string]string `json:"streams,omitempty"`
+}
+
+// SQS is a configuration for aws SQS.
+type SQS struct {
+	Region   string `json:"region,omitempty"`
+	QueueURL string `json:"queue_url,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 //go:embed files/eng_ca.crt
@@ -322,6 +333,17 @@ func (c *Config) ConfigureProducers(airbrakeHandler *airbrake.Handler, logger *l
 			return nil, nil, err
 		}
 		producers[telemetry.Kinesis] = kinesis
+	}
+
+	if _, ok := requiredDispatchers[telemetry.SQS]; ok {
+		if c.SQS == nil {
+			return nil, nil, errors.New("expected SQS to be configured")
+		}
+		sqsProducer, err := sqs.NewProducer(c.SQS.QueueURL, c.SQS.Region, c.SQS.Endpoint, c.prometheusEnabled(), c.MetricCollector, airbrakeHandler, c.AckChan, reliableAckSources[telemetry.SQS], logger)
+		if err != nil {
+			return nil, nil, err
+		}
+		producers[telemetry.SQS] = sqsProducer
 	}
 
 	if _, ok := requiredDispatchers[telemetry.ZMQ]; ok {

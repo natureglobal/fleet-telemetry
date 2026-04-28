@@ -25,6 +25,11 @@
             "connectivity": "test_connectivity"
         }
     },
+    "sqs": {
+        "endpoint": "http://kinesis:4566",
+        "region": "us-west-2",
+        "queue_url": "http://kinesis:4566/000000000000/test_telemetry"
+    },
     "zmq": {
         "addr": "tcp://*:5284"
     },
@@ -56,6 +61,7 @@
         "V": [
             "kafka",
             "kinesis",
+            "sqs",
             "pubsub",
             "logger",
             "mqtt",
