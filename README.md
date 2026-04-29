@@ -81,6 +81,12 @@ For ease of installation and operation, run Fleet Telemetry on Kubernetes or a s
       "V": "custom_stream_name"
     }
   },
+  "sqs": {
+    "region": string - AWS region,
+    "queue_url": string - full SQS queue URL,
+    "endpoint": string - optional override for the SQS endpoint (e.g., LocalStack),
+    "message_attributes": { string: string } - optional MessageAttributes added to every published message
+  },
   "rate_limit": {
     "enabled": bool,
     "message_limit": int - ex.: 1000
@@ -156,6 +162,10 @@ Dispatchers handle vehicle data processing upon its arrival at Fleet Telemetry s
   * By default, stream names will be \*configured namespace\*_\*topic_name\*  ex.: `tesla_V`, `tesla_alerts`, etc
   * Configure stream names directly by setting the streams config `"kinesis": { "streams": { *topic_name*: stream_name } }`
   * Override stream names with env variables: KINESIS_STREAM_\*uppercase topic\* ex.: `KINESIS_STREAM_V`
+* SQS: Configure with standard [AWS env variables and config files](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html).
+  * Each record is sent as a single `SendMessage` call. The protobuf payload bytes are base64-encoded into the message body to satisfy SQS's UTF-8 body requirement; consumers should base64-decode and unmarshal as the appropriate proto for the record type (e.g., `protos.Payload` for `V`).
+  * All records share a single queue. Configure dispatcher routing in `records` to control which record types are forwarded to SQS.
+  * Use `message_attributes` to attach static SQS MessageAttributes (e.g., a job-type label) when consumers share a queue across multiple producers.
 * Google pubsub: Along with the required pubsub config (See ./test/integration/config.json for example), be sure to set the environment variable `GOOGLE_APPLICATION_CREDENTIALS`
   * On startup, the server will attempt to create missing topics and panic on failure.
 * ZMQ: Configure with the config.json file.  See implementation here: [config/config.go](./config/config.go)

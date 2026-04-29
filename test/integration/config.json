@@ -28,7 +28,10 @@
     "sqs": {
         "endpoint": "http://kinesis:4566",
         "region": "us-west-2",
-        "queue_url": "http://kinesis:4566/000000000000/test_telemetry"
+        "queue_url": "http://kinesis:4566/000000000000/test_telemetry",
+        "message_attributes": {
+            "type": "tesla_telemetry"
+        }
     },
     "zmq": {
         "addr": "tcp://*:5284"

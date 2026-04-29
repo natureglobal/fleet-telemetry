@@ -3,6 +3,7 @@ package sqs
 import (
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -16,25 +17,17 @@ import (
 	"github.com/teslamotors/fleet-telemetry/telemetry"
 )
 
-const (
-	// JobTypeAttributeName is the MessageAttribute key consumers route on
-	// when the same queue carries multiple job types.
-	JobTypeAttributeName = "type"
-	// JobTypeTeslaTelemetry is the JobTypeAttributeName value set on every
-	// message produced by this package.
-	JobTypeTeslaTelemetry = "tesla_telemetry"
-)
-
 // Producer client to handle sqs interactions
 type Producer struct {
 	sqs                *awssqs.SQS
 	queueURL           string
+	staticAttributes   map[string]*awssqs.MessageAttributeValue
 	logger             *logrus.Logger
 	prometheusEnabled  bool
 	metricsCollector   metrics.MetricCollector
 	airbrakeHandler    *airbrake.Handler
 	ackChan            chan (*telemetry.Record)
-	reliableAckTxTypes map[string]interface{}
+	reliableAckTxTypes map[string]any
 }
 
 // Metrics stores metrics reported from this package
@@ -51,7 +44,7 @@ var (
 )
 
 // NewProducer configures and tests the sqs connection
-func NewProducer(queueURL, region, overrideHost string, prometheusEnabled bool, metricsCollector metrics.MetricCollector, airbrakeHandler *airbrake.Handler, ackChan chan (*telemetry.Record), reliableAckTxTypes map[string]interface{}, logger *logrus.Logger) (telemetry.Producer, error) {
+func NewProducer(queueURL, region, overrideHost string, messageAttributes map[string]string, prometheusEnabled bool, metricsCollector metrics.MetricCollector, airbrakeHandler *airbrake.Handler, ackChan chan (*telemetry.Record), reliableAckTxTypes map[string]interface{}, logger *logrus.Logger) (telemetry.Producer, error) {
 	registerMetricsOnce(metricsCollector)
 
 	if queueURL == "" {
@@ -81,9 +74,21 @@ func NewProducer(queueURL, region, overrideHost string, prometheusEnabled bool, 
 		return nil, fmt.Errorf("failed to list queues (test connection): %v", err)
 	}
 
+	staticAttributes := make(map[string]*awssqs.MessageAttributeValue, len(messageAttributes))
+	for k, v := range messageAttributes {
+		if v == "" {
+			continue
+		}
+		staticAttributes[k] = &awssqs.MessageAttributeValue{
+			DataType:    aws.String("String"),
+			StringValue: aws.String(v),
+		}
+	}
+
 	return &Producer{
 		sqs:                service,
 		queueURL:           queueURL,
+		staticAttributes:   staticAttributes,
 		logger:             logger,
 		prometheusEnabled:  prometheusEnabled,
 		metricsCollector:   metricsCollector,
@@ -102,7 +107,7 @@ func (p *Producer) Produce(entry *telemetry.Record) {
 	out, err := p.sqs.SendMessage(&awssqs.SendMessageInput{
 		QueueUrl:          aws.String(p.queueURL),
 		MessageBody:       aws.String(body),
-		MessageAttributes: messageAttributesFromRecord(entry),
+		MessageAttributes: p.messageAttributesFromRecord(entry),
 	})
 	if err != nil {
 		p.ReportError("sqs_err", err, logrus.LogInfo{"record_type": entry.TxType})
@@ -121,14 +126,11 @@ func (p *Producer) Produce(entry *telemetry.Record) {
 	metricsRegistry.byteTotal.Add(int64(entry.Length()), map[string]string{"record_type": entry.TxType})
 }
 
-// messageAttributesFromRecord converts record metadata to sqs message attributes
-func messageAttributesFromRecord(entry *telemetry.Record) map[string]*awssqs.MessageAttributeValue {
-	attrs := map[string]*awssqs.MessageAttributeValue{
-		JobTypeAttributeName: {
-			DataType:    aws.String("String"),
-			StringValue: aws.String(JobTypeTeslaTelemetry),
-		},
-	}
+// messageAttributesFromRecord merges the producer's configured static
+// attributes with per-record metadata. Record metadata wins on key collision.
+func (p *Producer) messageAttributesFromRecord(entry *telemetry.Record) map[string]*awssqs.MessageAttributeValue {
+	attrs := make(map[string]*awssqs.MessageAttributeValue, len(p.staticAttributes)+len(entry.Metadata()))
+	maps.Copy(attrs, p.staticAttributes)
 	for k, v := range entry.Metadata() {
 		// sqs rejects message attributes with empty StringValue
 		if v == "" {

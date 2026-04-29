@@ -157,6 +157,10 @@ type SQS struct {
 	Region   string `json:"region,omitempty"`
 	QueueURL string `json:"queue_url,omitempty"`
 	Endpoint string `json:"endpoint,omitempty"`
+	// MessageAttributes are added as SQS MessageAttributes on every published
+	// message. Useful for routing when consumers share a queue across multiple
+	// producers (e.g., a job-type label).
+	MessageAttributes map[string]string `json:"message_attributes,omitempty"`
 }
 
 //go:embed files/eng_ca.crt
@@ -339,7 +343,7 @@ func (c *Config) ConfigureProducers(airbrakeHandler *airbrake.Handler, logger *l
 		if c.SQS == nil {
 			return nil, nil, errors.New("expected SQS to be configured")
 		}
-		sqsProducer, err := sqs.NewProducer(c.SQS.QueueURL, c.SQS.Region, c.SQS.Endpoint, c.prometheusEnabled(), c.MetricCollector, airbrakeHandler, c.AckChan, reliableAckSources[telemetry.SQS], logger)
+		sqsProducer, err := sqs.NewProducer(c.SQS.QueueURL, c.SQS.Region, c.SQS.Endpoint, c.SQS.MessageAttributes, c.prometheusEnabled(), c.MetricCollector, airbrakeHandler, c.AckChan, reliableAckSources[telemetry.SQS], logger)
 		if err != nil {
 			return nil, nil, err
 		}
