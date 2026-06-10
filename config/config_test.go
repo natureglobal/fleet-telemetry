@@ -223,6 +223,18 @@ var _ = Describe("Test full application config", func() {
 		})
 	})
 
+	Context("configure sqs", func() {
+		It("returns an error if sqs isn't included", func() {
+			log, _ := logrus.NoOpLogger()
+			config.Records = map[string][]telemetry.Dispatcher{"V": {"sqs"}}
+
+			var err error
+			_, producers, err = config.ConfigureProducers(airbrake.NewAirbrakeHandler(nil), log, true)
+			Expect(err).To(MatchError("expected SQS to be configured"))
+			Expect(producers).To(BeNil())
+		})
+	})
+
 	Context("VinsToTrack", func() {
 
 		AfterEach(func() {
