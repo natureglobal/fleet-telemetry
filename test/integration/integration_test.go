@@ -26,18 +26,20 @@ import (
 )
 
 const (
-	deviceID    = "device-1"
-	vehicleName = "My Test Vehicle"
-	location    = "(37.412374 S, 122.145867 E)"
-	projectID   = "test-project-id"
-	kafkaGroup  = "test-kafka-consumer"
-	kafkaBroker = "kafka:9092"
-	pubsubHost  = "pubsub:8085"
-	zmqAddr     = "tcp://app:5284"
-	mqttBroker  = "mqtt:1883"
-	mqttTopic   = "telemetry/device-1/v/VehicleName"
-	kinesisHost = "http://kinesis:4566"
-	sqsHost     = "http://kinesis:4566"
+	deviceID     = "device-1"
+	vehicleName  = "My Test Vehicle"
+	location     = "(37.412374 S, 122.145867 E)"
+	projectID    = "test-project-id"
+	kafkaGroup   = "test-kafka-consumer"
+	kafkaBroker  = "kafka:9092"
+	pubsubHost   = "pubsub:8085"
+	zmqAddr      = "tcp://app:5284"
+	mqttBroker   = "mqtt:1883"
+	mqttTopic    = "telemetry/device-1/v/VehicleName"
+	kinesisHost  = "http://kinesis:4566"
+	sqsHost      = "http://kinesis:4566"
+	redisAddr    = "redis:6379"
+	redisChannel = "tesla_telemetry_redis_test"
 
 	kinesisStreamName             = "test_V"
 	kinesisConnectivityStreamName = "test_connectivity"
@@ -64,6 +66,7 @@ var _ = Describe("Test messages", Ordered, func() {
 		kafkaConsumer   *kafka.Consumer
 		zmqConsumer     *TestZMQConsumer
 		mqttConsumer    *TestMQTTConsumer
+		redisConsumer   *TestRedisConsumer
 		tlsConfig       *tls.Config
 		timestamp       *timestamppb.Timestamp
 		logger          *logrus.Logger
@@ -101,6 +104,9 @@ var _ = Describe("Test messages", Ordered, func() {
 
 		mqttConsumer, err = NewTestMQTTConsumer(mqttBroker, mqttTopic, logger)
 		Expect(err).NotTo(HaveOccurred())
+
+		redisConsumer, err = NewTestRedisConsumer(redisAddr, fmt.Sprintf("consumer_%s_{%s}", vehicleTopic, deviceID), redisChannel)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	BeforeEach(func() {
@@ -116,6 +122,8 @@ var _ = Describe("Test messages", Ordered, func() {
 		pubsubConsumer.ClearSubscriptions()
 		_ = connection.Close()
 		zmqConsumer.Close()
+		mqttConsumer.Close()
+		redisConsumer.Close()
 		os.Clearenv()
 	})
 
@@ -248,6 +256,16 @@ var _ = Describe("Test messages", Ordered, func() {
 			Expect(data).NotTo(BeNil())
 			Expect(topic).To(Equal(vehicleTopic))
 			VerifyMessageBody(data, vehicleName)
+		})
+
+		It("reads vehicle data from redis subscriber", func() {
+			err := connection.WriteMessage(websocket.BinaryMessage, payload)
+			Expect(err).NotTo(HaveOccurred())
+
+			msg, err := redisConsumer.FetchRedisMessage()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msg).NotTo(BeNil())
+			VerifyMessageBody(msg, vehicleName)
 		})
 	})
 
