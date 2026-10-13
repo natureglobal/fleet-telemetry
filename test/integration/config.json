@@ -45,6 +45,11 @@
         "connect_timeout_ms": 30000,
         "publish_timeout_ms": 1000
     },
+    "redis": {
+        "addrs": ["redis:6379"],
+        "publish_vin_topics": true,
+        "subscriber_set_prefix": "consumer"
+    },
     "vins_signal_tracking_enabled": [
         "device-1"
     ],
@@ -68,7 +73,8 @@
             "pubsub",
             "logger",
             "mqtt",
-            "zmq"
+            "zmq",
+            "redis"
         ],
         "connectivity": [
             "kafka",
@@ -87,6 +93,6 @@
         "project_id": 1,
         "project_key": "test1",
         "environment": "integration",
-        "host": "http://errbit:48088"
+        "host": "http://errbit:80"
     }
 }

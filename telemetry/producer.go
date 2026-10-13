@@ -24,6 +24,8 @@ const (
 	MQTT Dispatcher = "mqtt"
 	// SQS registers an AWS SQS dispatcher
 	SQS Dispatcher = "sqs"
+	// Redis registers a Redis pub/sub dispatcher
+	Redis Dispatcher = "redis"
 )
 
 // BuildTopicName creates a topic from a namespace and a recordName

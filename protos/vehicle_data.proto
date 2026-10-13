@@ -284,6 +284,22 @@ enum Field {
 
   MilesSinceReset = 258;
   SelfDrivingMilesSinceReset = 259;
+
+  // fields 260-269 are first available in firmware version 2026.32 (device client version 1.3.0)
+
+  GpsAccuracyMeters = 260;
+  LifetimeEnergyChargedKwh = 261;
+  BrickSocMinPercent = 262;
+  NominalFullPackEnergyKwh = 263;
+  GradeEstimatePercent = 264;
+  MaxSpeedToReachDestinationMph = 265;
+  SoftwareUpdateAvailable = 266;
+  SoftwareUpdateInProgress = 267;
+  RemoteStartActive = 268;
+  SemiCruiseSpeedLimitMph = 269; // Semi-truck only
+
+  Cabin12vPortKeepOn = 270; // Semi-truck only
+  Cabin48vPortKeepOn = 271; // Semi-truck only
 }
 
 // ChargingState is deprecated and not used
@@ -657,6 +673,12 @@ enum SunroofInstalledState {
   SunroofInstalledStateGen2Installed = 3;
 }
 
+enum CabinPortKeepOnState {
+  CabinPortKeepOnStateUnknown = 0;
+  CabinPortKeepOnStateOff = 1;
+  CabinPortKeepOnStateOn = 2;
+}
+
 enum TurnSignalState {
   TurnSignalStateUnknown = 0;
   TurnSignalStateOff = 1;
@@ -750,6 +772,7 @@ message Value {
     TurnSignalState turn_signal_state_value = 52;
     MediaStatus media_status_value = 53;
     SunroofInstalledState sunroof_installed_state_value = 54;
+    CabinPortKeepOnState cabin_port_keep_on_value = 55;
   }
 }
 
